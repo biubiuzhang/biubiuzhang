@@ -1,4 +1,4 @@
-# My Achievements
+# Networking Items
 
 ## Full Hostname Not Broadcast via mDNS (Avahi)
 
@@ -52,6 +52,78 @@ This is a great real-world example of:
 sudo rm -rf /var/cache/avahi-daemon/*
 sudo systemctl restart avahi-daemon
 avahi-browse _ssh._tcp --ignore-local --resolve --terminate
+
 # Titan side useful commands
 hostnamectl
 ```
+
+## Enhanced Avahi mDNS Metadata for Device Discovery
+
+### Summary
+
+To support the **Elements Technician App** and improve device discoverability, the default Avahi mDNS broadcasting was extended to include structured metadata. This enabled user-friendly identification and filtering of devices on the network based on key attributes like serial number, firmware version, and commission status — beyond the basic hostname.
+
+Avahi previously only advertised the `_ssh._tcp` service with minimal or no TXT records.
+
+Users and technician tools had no way to programmatically distinguish device types or firmware versions in a local `.local` network environment.
+
+### Implementation Overview
+
+Created `/usr/libexec/titan-startup-tasks/update-avahi-service.sh` to:
+
+Extract dynamic runtime values from system sources:
+
+* `fw_printenv serial_number`
+* `/etc/os-release`
+* `/etc/hwrevision`
+* `/etc/everest/config-titan.yaml`
+
+Build a custom Avahi XML service file at `/etc/avahi/services/ssh.service` with:
+
+```
+<txt-record>serial_number=PTD701</txt-record>
+<txt-record>firmware_version=0.17.7</txt-record>
+<txt-record>commissioned=no</txt-record>
+<txt-record>connectors=2</txt-record>
+```
+
+Restart `avahi-daemon` after update to reflect live changes.
+
+### Tech Notes
+
+#### Avahi Static Service Files
+
+You can create custom Avahi service definitions in `/etc/avahi/service/*.service`. These are XML files that Avahi reads and advertises on the network.
+
+```
+<service-group>
+  <name replace-wildcards="yes">%h</name>  <!-- %h = current hostname -->
+  <service>
+    <type>_ssh._tcp</type>
+    <port>9022</port>
+    <txt-record>serial_number=PTD701</txt-record>
+    <txt-record>firmware_version=0.17.7</txt-record>
+  </service>
+</service-group>
+```
+
+#### Dynamic Configuratoin via Scripts
+
+Avahi does not dynamically watch for config changes in TXT records unless the XML file is rewritten and the service is restarted.
+
+#### Tools for Testing and Debugging
+
+```
+avahi-browse -a -t  # Browse all active mDNS services
+avahi-resolve-host-name titan-rev2-b.local #Check name resolution
+dns-sd -B _ssh._tcp # (on macOS) Bonjour-compatible browsing
+mdns-scan or avahi-discover # (GUI) For a graphical view
+```
+
+#### Pitfalls to Avoid
+
+TXT records exceeding 255 bytes or 9 entries may silently fail on some clients.
+
+Avahi may cache hostname -> IP mapping; always flush with restart avahi-daemon system service.
+
+Don't forget to use correct `replace-wildcards="yes"` if using `%h` or `%n`.
