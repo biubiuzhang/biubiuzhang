@@ -1,4 +1,4 @@
-# Networking Items
+# Networking - mDNS/Avahi
 
 ## Full Hostname Not Broadcast via mDNS (Avahi)
 
