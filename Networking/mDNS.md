@@ -127,3 +127,22 @@ TXT records exceeding 255 bytes or 9 entries may silently fail on some clients.
 Avahi may cache hostname -> IP mapping; always flush with restart avahi-daemon system service.
 
 Don't forget to use correct `replace-wildcards="yes"` if using `%h` or `%n`.
+
+## Avoiding Failures on Systems Without Avahi
+
+Older builds may not include `avahi-daemon`, leading to script errors or failed `systemctl` calls during upgrade or install.
+
+Improved this logic in preinstall scripts: `systemctl is-active --quiet avahi-daemon && systemctl stop avahi-daemon 2>/dev/null`
+
+* **`systemctl is-active --quiet avahi-daemon`**
+  * Checks if the `avahi-daemon` systemd service is **currently active (running)**.
+  * `--quiet` suppresses all output (no "active" or "inactive" printed).
+  * Returns:
+    * Exit code `0` if **active**
+    * Exit code `1` if **inactive**
+    * Exit code `3` if **not found**
+* **`&&` (Logical AND)**
+  * Only runs the next command if the previous command **returns exit code 0** (i.e., the service is active).
+* **`systemctl stop avahi-daemon 2>/dev/null`**
+  * Stops the service.
+  * `2>/dev/null` silences **stderr**, so even if something goes wrong (e.g. permission denied), no error message clutters the logs.
